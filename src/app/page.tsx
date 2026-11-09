@@ -17,11 +17,18 @@ interface ReplyRef {
   isImage: boolean
 }
 
+interface PendingImage {
+  dataUrl: string
+  name: string
+  kb: number
+}
+
 interface ChatMessage {
   kind: 'system' | 'text' | 'image'
   id: string
   username?: string
   text?: string // decrypted plaintext (images: data URL)
+  caption?: string // decrypted optional photo caption
   timestamp?: string
   isSelf?: boolean
   reply?: ReplyRef | null
@@ -32,6 +39,8 @@ const RT_BOOT_URL = '/api/rt'
 const TYPING_RESET_MS = 1200
 const MAX_TEXT = 500
 const MAX_IMAGE_DIM = 1024
+const MAX_CAPTION = 300
+const OC1_MIME = 'data:image/oc1;base64,'
 
 let idCounter = 0
 const nextId = () => `m${Date.now()}_${idCounter++}`
@@ -91,6 +100,20 @@ async function openText(key: CryptoKey, payload: string): Promise<string> {
   const cipher = bytes.subarray(12)
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher)
   return decoder.decode(plain)
+}
+
+/* Sealed photo envelope: images travel as `data:image/oc1;base64,…` — shaped
+   like a data URL so the relay passes it through untouched, while the custom
+   mime marks the body as AES-GCM ciphertext that only room members can open. */
+
+async function sealImagePacket(key: CryptoKey, plain: string): Promise<string> {
+  return OC1_MIME + (await sealText(key, plain))
+}
+
+async function openPacket(key: CryptoKey, payload: string): Promise<string> {
+  if (payload.startsWith(OC1_MIME)) return openText(key, payload.slice(OC1_MIME.length))
+  if (payload.startsWith('oc1:')) return openText(key, payload.slice(4))
+  return payload // legacy plaintext passthrough
 }
 
 /* ------------------------------- utilities -------------------------------- */
@@ -195,6 +218,9 @@ export default function IpChatPage() {
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [draft, setDraft] = useState('')
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null)
+  const [captionDraft, setCaptionDraft] = useState('')
+  const [sendingImage, setSendingImage] = useState(false)
 
   const socketRef = useRef<Socket | null>(null)
   const roomRef = useRef('')
@@ -281,14 +307,29 @@ export default function IpChatPage() {
       scrollToBottom()
     })
 
-    socket.on('receive_image', (body: { username: string; imageData: string; senderId: string; timestamp: string; reply: ReplyRef | null }) => {
+    socket.on('receive_image', async (body: { username: string; imageData: string; caption?: string; senderId: string; timestamp: string; reply: ReplyRef | null }) => {
+      let dataUrl = ''
+      let caption = ''
+      try {
+        if (keyRef.current) {
+          dataUrl = await openPacket(keyRef.current, body.imageData)
+          if (body.caption) caption = await openPacket(keyRef.current, body.caption)
+        }
+      } catch {
+        dataUrl = ''
+      }
+      if (!dataUrl.startsWith('data:image/')) {
+        pushSystem(`A photo from ${body.username} could not be decrypted.`)
+        return
+      }
       setMessages((prev) => [
         ...prev,
         {
           kind: 'image',
           id: nextId(),
           username: body.username,
-          text: body.imageData,
+          text: dataUrl,
+          caption,
           timestamp: body.timestamp,
           isSelf: body.senderId === socket!.id,
           reply: body.reply,
@@ -360,7 +401,12 @@ export default function IpChatPage() {
     if (msg.kind === 'system') return
     const ref: ReplyRef = {
       username: msg.username ?? '',
-      message: msg.kind === 'image' ? '🖼 photo' : (msg.text ?? '').slice(0, 120),
+      message:
+        msg.kind === 'image'
+          ? msg.caption?.trim()
+            ? msg.caption.slice(0, 120)
+            : '🖼 photo'
+          : (msg.text ?? '').slice(0, 120),
       isImage: msg.kind === 'image',
     }
     replyRef.current = ref
@@ -414,21 +460,66 @@ export default function IpChatPage() {
     cancelReply()
   }
 
+  /* Photo picking never sends directly — the file lands in a WhatsApp-style
+     confirmation sheet first; only the explicit Send button puts it on the
+     wire, so an accidental pick can always be discarded.                    */
+
   const handlePickImage = async (file: File | undefined) => {
-    const socket = socketRef.current
-    if (!socket || !file) return
+    if (!file) return
     if (!file.type.startsWith('image/')) {
       pushSystem('That file is not an image.')
       return
     }
     try {
       const dataUrl = await shrinkImage(file)
-      socket.emit('send_image', { imageData: dataUrl, reply: replyRef.current })
-      cancelReply()
+      setCaptionDraft('')
+      setPendingImage({ dataUrl, name: file.name || 'photo', kb: Math.max(1, Math.round(file.size / 1024)) })
     } catch {
       pushSystem('Could not read that image.')
     }
   }
+
+  const cancelPendingImage = () => {
+    if (sendingImage) return
+    setPendingImage(null)
+    setCaptionDraft('')
+  }
+
+  const confirmSendImage = async () => {
+    const socket = socketRef.current
+    if (!socket || !keyRef.current || !pendingImage || sendingImage) return
+    setSendingImage(true)
+    try {
+      const sealed = await sealImagePacket(keyRef.current, pendingImage.dataUrl)
+      if (sealed.length > 1_950_000) {
+        pushSystem('That photo is too large once sealed — try a smaller one.')
+        return
+      }
+      const cap = captionDraft.trim().slice(0, MAX_CAPTION)
+      const sealedCaption = cap ? 'oc1:' + (await sealText(keyRef.current, cap)) : ''
+      socket.emit('send_image', { imageData: sealed, caption: sealedCaption, reply: replyRef.current })
+      cancelReply()
+      setPendingImage(null)
+      setCaptionDraft('')
+    } catch {
+      pushSystem('Could not seal that photo for sending.')
+    } finally {
+      setSendingImage(false)
+    }
+  }
+
+  // Escape dismisses the confirmation sheet (never mid-send)
+  useEffect(() => {
+    if (!pendingImage) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !sendingImage) {
+        setPendingImage(null)
+        setCaptionDraft('')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pendingImage, sendingImage])
 
   const handleClear = () => {
     if (window.confirm('Clear the chat for everyone in this room?')) {
@@ -575,12 +666,15 @@ export default function IpChatPage() {
                       </div>
                     )}
                     {msg.kind === 'image' ? (
-                      <img
-                        className="oc-img-thumb"
-                        src={msg.text}
-                        alt={`photo from ${msg.username}`}
-                        onClick={(e) => { e.stopPropagation(); setLightbox(msg.text ?? null) }}
-                      />
+                      <>
+                        <img
+                          className="oc-img-thumb"
+                          src={msg.text}
+                          alt={`photo from ${msg.username}`}
+                          onClick={(e) => { e.stopPropagation(); setLightbox(msg.text ?? null) }}
+                        />
+                        {msg.caption && <span className="oc-img-caption">{msg.caption}</span>}
+                      </>
                     ) : (
                       <span className="oc-text">{msg.text}</span>
                     )}
@@ -632,6 +726,44 @@ export default function IpChatPage() {
           </div>
         </main>
       </div>
+
+      {pendingImage && (
+        <div className="oc-overlay confirm" onClick={cancelPendingImage}>
+          <div className="oc-confirm" role="dialog" aria-modal="true" aria-label="Confirm sending photo" onClick={(e) => e.stopPropagation()}>
+            <header className="oc-confirm-head">
+              <div className="oc-confirm-titles">
+                <span className="oc-confirm-title">Send photo?</span>
+                <span className="oc-confirm-sub">to room {roomRef.current || '—'}</span>
+              </div>
+              <button className="oc-confirm-x" onClick={cancelPendingImage} aria-label="Discard photo" disabled={sendingImage}>✕</button>
+            </header>
+            <div className="oc-confirm-preview">
+              <img src={pendingImage.dataUrl} alt="Selected photo preview" />
+            </div>
+            <div className="oc-confirm-meta">
+              <LockIcon />
+              <span>Encrypted end-to-end · {pendingImage.name} · {pendingImage.kb} KB</span>
+            </div>
+            <input
+              className="oc-confirm-caption"
+              value={captionDraft}
+              onChange={(e) => setCaptionDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmSendImage() } }}
+              placeholder="Add a caption… (optional)"
+              maxLength={MAX_CAPTION}
+              autoFocus
+              disabled={sendingImage}
+            />
+            <footer className="oc-confirm-foot">
+              <button className="oc-confirm-cancel" onClick={cancelPendingImage} disabled={sendingImage}>Cancel</button>
+              <button className="oc-confirm-send" onClick={confirmSendImage} disabled={sendingImage}>
+                <SendIcon />
+                <span>{sendingImage ? 'Sealing…' : 'Send'}</span>
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
 
       {lightbox && (
         <div className="oc-overlay" onClick={() => setLightbox(null)}>

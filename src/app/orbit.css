@@ -1057,3 +1057,256 @@
     animation: none;
   }
 }
+
+/* ------------------- photo confirm sheet (WhatsApp-style) ------------------- */
+
+.oc-overlay.confirm {
+  z-index: 70;
+  cursor: default;
+  padding: 18px;
+}
+
+.oc-confirm {
+  display: flex;
+  flex-direction: column;
+  width: min(500px, 100%);
+  max-height: min(88vh, 760px);
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    rgba(10, 12, 18, 0.92);
+  border: 1px solid rgba(216, 178, 110, 0.22);
+  backdrop-filter: blur(26px);
+  -webkit-backdrop-filter: blur(26px);
+  box-shadow:
+    0 40px 120px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(240, 217, 168, 0.14);
+  animation: oc-pop 0.22s ease both;
+}
+
+@keyframes oc-pop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.oc-confirm-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 16px 10px 20px;
+}
+
+.oc-confirm-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.oc-confirm-title {
+  font-family: var(--font-playfair), Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--oc-ink);
+}
+
+.oc-confirm-sub {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--oc-gold);
+}
+
+.oc-confirm-x {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--oc-line-soft);
+  background: transparent;
+  color: var(--oc-mid);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+}
+
+.oc-confirm-x:hover {
+  color: var(--oc-bad);
+  border-color: rgba(229, 116, 138, 0.5);
+  transform: rotate(90deg);
+}
+
+.oc-confirm-x:disabled,
+.oc-confirm-cancel:disabled,
+.oc-confirm-send:disabled,
+.oc-confirm-caption:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.oc-confirm-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 20px 16px;
+}
+
+.oc-confirm-preview img {
+  max-width: 100%;
+  max-height: 44vh;
+  border-radius: 14px;
+  border: 1px solid rgba(216, 178, 110, 0.22);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+}
+
+.oc-confirm-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 10px;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--oc-dim);
+}
+
+.oc-confirm-meta svg {
+  color: var(--oc-ok);
+  flex: none;
+}
+
+.oc-confirm-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oc-confirm-caption {
+  margin: 0 20px 14px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--oc-line-soft);
+  border-radius: 999px;
+  color: var(--oc-ink);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 300;
+  padding: 11px 18px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.oc-confirm-caption::placeholder {
+  color: rgba(139, 135, 120, 0.55);
+}
+
+.oc-confirm-caption:focus {
+  border-color: rgba(216, 178, 110, 0.5);
+  box-shadow: 0 0 0 4px rgba(216, 178, 110, 0.08);
+}
+
+.oc-confirm-foot {
+  display: flex;
+  gap: 10px;
+  padding: 0 20px calc(18px + env(safe-area-inset-bottom, 0px));
+}
+
+.oc-confirm-cancel {
+  flex: 1;
+  padding: 12px 14px;
+  background: transparent;
+  border: 1px solid var(--oc-line-soft);
+  border-radius: var(--oc-radius);
+  color: var(--oc-mid);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+
+.oc-confirm-cancel:hover {
+  color: var(--oc-bad);
+  border-color: rgba(229, 116, 138, 0.45);
+}
+
+.oc-confirm-send {
+  position: relative;
+  flex: 1.5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: var(--oc-radius);
+  background: linear-gradient(120deg, var(--oc-gold-hi) 0%, var(--oc-gold) 42%, var(--oc-gold-deep) 100%);
+  color: #221a0c;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 12px 34px rgba(216, 178, 110, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: filter 0.18s ease, transform 0.06s ease;
+}
+
+.oc-confirm-send:hover {
+  filter: brightness(1.06);
+}
+
+.oc-confirm-send:active {
+  transform: translateY(1px);
+}
+
+/* caption under a photo inside the chat bubble */
+.oc-img-caption {
+  display: block;
+  margin-top: 9px;
+  font-size: 13.5px;
+  font-weight: 300;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 720px) {
+  .oc-confirm {
+    width: 100%;
+    max-height: 92vh;
+  }
+
+  .oc-confirm-preview {
+    padding: 4px 14px 12px;
+  }
+
+  .oc-confirm-preview img {
+    max-height: 36vh;
+  }
+
+  .oc-confirm-caption {
+    margin: 0 14px 12px;
+  }
+
+  .oc-confirm-foot {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}

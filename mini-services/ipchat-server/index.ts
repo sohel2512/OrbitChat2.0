@@ -10,7 +10,8 @@ import { Server } from 'socket.io'
 const PORT = 3003
 const MAX_TEXT_LEN = 500
 const MAX_NAME_LEN = 20
-const MAX_IMAGE_CHARS = 2_000_000 // ~1.5 MB binary after base64
+const MAX_IMAGE_CHARS = 2_400_000 // sealed image envelope ceiling
+const MAX_CAPTION_CHARS = 1_500 // sealed caption ceiling
 
 interface Member {
   id: string
@@ -137,15 +138,19 @@ io.on('connection', (socket) => {
   socket.on('send_image', (payload: unknown) => {
     if (!currentRoom) return
     const data = (payload ?? {}) as Record<string, unknown>
+    // Photos arrive client-side encrypted as `data:image/oc1;base64,…` —
+    // opaque to this relay. Legacy plaintext data URLs are still forwarded.
     const imageData = typeof data.imageData === 'string' ? data.imageData : ''
-    if (!imageData.startsWith('data:image/')) return
+    if (!imageData.startsWith('data:image/') && !imageData.startsWith('oc1:')) return
     if (imageData.length > MAX_IMAGE_CHARS) {
-      socket.emit('image_rejected', { reason: 'Image too large (max ~1.5 MB).' })
+      socket.emit('image_rejected', { reason: 'Image too large (max ~1.8 MB).' })
       return
     }
-    const body: ChatPayload & { imageData: string } = {
+    const caption = typeof data.caption === 'string' && data.caption.length <= MAX_CAPTION_CHARS ? data.caption : ''
+    const body: ChatPayload & { imageData: string; caption: string } = {
       username: currentName,
       imageData,
+      caption,
       senderId: socket.id,
       timestamp: new Date().toISOString(),
       reply: cleanReply(data.reply),

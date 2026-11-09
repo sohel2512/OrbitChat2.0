@@ -13,7 +13,9 @@ import { Server as SocketServer, type Socket } from 'socket.io'
 const PORT = 3003
 const MAX_TEXT_LEN = 500
 const MAX_NAME_LEN = 20
-const MAX_IMAGE_CHARS = 2_000_000 // ~1.5 MB binary after base64
+const MAX_IMAGE_CHARS = 2_400_000 // sealed image envelope ceiling
+const MAX_CAPTION_CHARS = 1_500 // sealed caption ceiling
+const RELAY_VERSION = 2 // bump to force a relay reboot after handler changes
 
 interface Member {
   id: string
@@ -130,15 +132,19 @@ function registerHandlers(io: SocketServer) {
     socket.on('send_image', (payload: unknown) => {
       if (!currentRoom) return
       const data = (payload ?? {}) as Record<string, unknown>
+      // Photos arrive client-side encrypted as `data:image/oc1;base64,…` —
+      // opaque to this relay. Legacy plaintext data URLs are still forwarded.
       const imageData = typeof data.imageData === 'string' ? data.imageData : ''
-      if (!imageData.startsWith('data:image/')) return
+      if (!imageData.startsWith('data:image/') && !imageData.startsWith('oc1:')) return
       if (imageData.length > MAX_IMAGE_CHARS) {
-        socket.emit('image_rejected', { reason: 'Image too large (max ~1.5 MB).' })
+        socket.emit('image_rejected', { reason: 'Image too large (max ~1.8 MB).' })
         return
       }
-      const body: ChatPayload & { imageData: string } = {
+      const caption = typeof data.caption === 'string' && data.caption.length <= MAX_CAPTION_CHARS ? data.caption : ''
+      const body: ChatPayload & { imageData: string; caption: string } = {
         username: currentName,
         imageData,
+        caption,
         senderId: socket.id,
         timestamp: new Date().toISOString(),
         reply: cleanReply(data.reply),
@@ -172,51 +178,88 @@ function registerHandlers(io: SocketServer) {
   })
 }
 
-type BootState = { started: boolean }
+interface BootState {
+  started: boolean
+  version: number
+  io?: SocketServer
+}
 
 export async function ensureRealtimeServer(): Promise<BootState> {
-  const g = globalThis as unknown as { __ipchatRealtime?: BootState }
-  if (g.__ipchatRealtime) return g.__ipchatRealtime
+  const g = globalThis as unknown as {
+    __ipchatRealtime?: BootState
+    __ipchatRealtimeBoot?: Promise<BootState>
+  }
 
-  const state: BootState = { started: false }
+  const alive = async (): Promise<boolean> => {
+    try {
+      const probe = await fetch(`http://127.0.0.1:${PORT}/?EIO=4&transport=polling`, {
+        signal: AbortSignal.timeout(1500),
+      })
+      return probe.ok
+    } catch {
+      return false
+    }
+  }
 
-  // If a standalone instance already owns the port, reuse it.
-  try {
-    const probe = await fetch(`http://127.0.0.1:${PORT}/?EIO=4&transport=polling`, {
-      signal: AbortSignal.timeout(1500),
+  const existing = g.__ipchatRealtime
+  if (existing) {
+    if (existing.version === RELAY_VERSION && (await alive())) return existing
+    if (!(await alive())) {
+      // stale and dead — clear the way for a reboot
+      try {
+        existing.io?.close()
+      } catch {
+        /* already gone */
+      }
+      g.__ipchatRealtime = undefined
+    }
+    // else: stale handlers but still listening and we hold no handle — keep
+    // serving (the wire protocol stays compatible) instead of bricking the port
+  }
+
+  if (g.__ipchatRealtimeBoot) return g.__ipchatRealtimeBoot
+
+  g.__ipchatRealtimeBoot = (async (): Promise<BootState> => {
+    const httpServer = createServer()
+    const io = new SocketServer(httpServer, {
+      path: '/',
+      cors: { origin: '*', methods: ['GET', 'POST'] },
+      pingTimeout: 60000,
+      pingInterval: 25000,
+      maxHttpBufferSize: 4e6,
     })
-    if (probe.ok) {
-      state.started = true
+    registerHandlers(io)
+
+    await new Promise<void>((resolve, reject) => {
+      const onError = (err: Error) => {
+        httpServer.close()
+        reject(err)
+      }
+      httpServer.once('error', onError)
+      httpServer.listen(PORT, '127.0.0.1', () => {
+        httpServer.off('error', onError)
+        resolve()
+      })
+    })
+
+    const state: BootState = { started: true, version: RELAY_VERSION, io }
+    g.__ipchatRealtime = state
+    return state
+  })()
+
+  try {
+    return await g.__ipchatRealtimeBoot
+  } catch {
+    // Boot raced with another listener (e.g. hot-reload takeover). If the port
+    // is served, treat it as usable — the client protocol stays compatible.
+    const state: BootState = { started: await alive(), version: RELAY_VERSION }
+    if (state.started) {
       g.__ipchatRealtime = state
       return state
     }
-  } catch {
-    /* port free — boot in-process */
+    g.__ipchatRealtime = undefined
+    throw new Error('realtime relay failed to start')
+  } finally {
+    g.__ipchatRealtimeBoot = undefined
   }
-
-  const httpServer = createServer()
-  const io = new SocketServer(httpServer, {
-    path: '/',
-    cors: { origin: '*', methods: ['GET', 'POST'] },
-    pingTimeout: 60000,
-    pingInterval: 25000,
-    maxHttpBufferSize: 4e6,
-  })
-  registerHandlers(io)
-
-  await new Promise<void>((resolve, reject) => {
-    const onError = (err: Error) => {
-      httpServer.close()
-      reject(err)
-    }
-    httpServer.once('error', onError)
-    httpServer.listen(PORT, '127.0.0.1', () => {
-      httpServer.off('error', onError)
-      resolve()
-    })
-  })
-
-  state.started = true
-  g.__ipchatRealtime = state
-  return state
 }
