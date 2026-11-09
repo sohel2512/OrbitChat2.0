@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { io, type Socket } from 'socket.io-client'
-import './ipchat.css'
+import './orbit.css'
 
 /* ---------------------------------- types --------------------------------- */
 
@@ -131,6 +131,26 @@ async function shrinkImage(file: File): Promise<string> {
 }
 
 /* --------------------------------- icons ---------------------------------- */
+
+const OrbitMark = ({ size = 40 }: { size?: number }) => (
+  <span className="oc-orbit-mark" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <defs>
+        <linearGradient id="oc-gold-grad" x1="6" y1="6" x2="34" y2="36">
+          <stop offset="0%" stopColor="#f0d9a8" />
+          <stop offset="55%" stopColor="#d8b26e" />
+          <stop offset="100%" stopColor="#a8874f" />
+        </linearGradient>
+      </defs>
+      <circle cx="20" cy="20" r="8.5" fill="url(#oc-gold-grad)" />
+      <circle cx="17.2" cy="17.2" r="2.6" fill="rgba(255,255,255,0.45)" />
+      <g className="oc-orbit-ring">
+        <ellipse cx="20" cy="20" rx="16" ry="6.5" stroke="url(#oc-gold-grad)" strokeWidth="1.1" opacity="0.85" transform="rotate(-24 20 20)" />
+        <circle cx="35" cy="13.5" r="1.9" fill="#f0d9a8" />
+      </g>
+    </svg>
+  </span>
+)
 
 const ArrowIcon = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
@@ -423,22 +443,24 @@ export default function IpChatPage() {
 
   if (screen === 'join') {
     return (
-      <div className="ipchat-root">
-        <div className="ic-join">
-          <div className="ic-grid-bg" aria-hidden="true" />
-          <div className="ic-join-card">
-            <div className="ic-join-logo">
-              <span className="ic-logo">
-                <span className="ic-bracket">[</span>
-                <span>IP</span>
-                <span className="ic-accent">CHAT</span>
-                <span className="ic-bracket">]</span>
+      <div className="orbit-root">
+        <div className="oc-join">
+          <div className="oc-orbit-deco one" aria-hidden="true"><span className="oc-planet" /></div>
+          <div className="oc-orbit-deco two" aria-hidden="true"><span className="oc-planet" /></div>
+          <div className="oc-card">
+            <div className="oc-join-logo">
+              <span className="oc-logo">
+                <OrbitMark size={46} />
+                <span className="oc-logo-word">
+                  <span className="oc-logo-title">Orbit</span>
+                  <span className="oc-logo-sub">Chat</span>
+                </span>
               </span>
             </div>
-            <p className="ic-subtitle">Same code, same room — type an IPv4-style address and everyone who enters it lands here.</p>
+            <p className="oc-tagline">A private lounge in the cloud — share one address, and everyone who enters it lands in the same room.</p>
 
-            <label className="ic-field">
-              <span className="ic-field-label">USERNAME</span>
+            <label className="oc-field">
+              <span className="oc-field-label">USERNAME</span>
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -449,8 +471,8 @@ export default function IpChatPage() {
               />
             </label>
 
-            <label className="ic-field">
-              <span className="ic-field-label">IP ADDRESS (ROOM CODE)</span>
+            <label className="oc-field">
+              <span className="oc-field-label">Room Code</span>
               <input
                 value={roomInput}
                 onChange={(e) => setRoomInput(e.target.value)}
@@ -459,19 +481,19 @@ export default function IpChatPage() {
                 autoComplete="off"
                 inputMode="decimal"
               />
-              <span className="ic-hint">Share this code with friends — same code, same room.</span>
+              <span className="oc-hint">Everyone who enters this exact code joins the same conversation.</span>
             </label>
 
-            <button className="ic-connect" onClick={handleConnect} disabled={connecting}>
-              <span>{connecting ? 'CONNECTING…' : 'CONNECT'}</span>
+            <button className="oc-connect" onClick={handleConnect} disabled={connecting}>
+              <span>{connecting ? 'Entering…' : 'Enter the room'}</span>
               <ArrowIcon />
             </button>
 
-            <p className="ic-error" role="alert">{joinError}</p>
+            <p className="oc-error" role="alert">{joinError}</p>
 
-            <p className="ic-enc-note">
+            <p className="oc-enc-note">
               <LockIcon />
-              MESSAGES ARE ENCRYPTED WITH THE ROOM CODE
+              Sealed with a key derived from the room code
             </p>
           </div>
         </div>
@@ -480,86 +502,87 @@ export default function IpChatPage() {
   }
 
   return (
-    <div className="ipchat-root">
-      <div className="ic-chat">
-        <div className={`ic-scrim${sidebarOpen ? ' show' : ''}`} onClick={() => setSidebarOpen(false)} aria-hidden="true" />
+    <div className="orbit-root">
+      <div className="oc-chat">
+        <div className={`oc-scrim${sidebarOpen ? ' show' : ''}`} onClick={() => setSidebarOpen(false)} aria-hidden="true" />
 
-        <aside className={`ic-sidebar${sidebarOpen ? ' open' : ''}`}>
-          <div className="ic-logo ic-side-logo">
-            <span className="ic-bracket">[</span>
-            <span>IP</span>
-            <span className="ic-accent">CHAT</span>
-            <span className="ic-bracket">]</span>
+        <aside className={`oc-sidebar${sidebarOpen ? ' open' : ''}`}>
+          <div className="oc-logo oc-side-logo">
+            <OrbitMark size={28} />
+            <span className="oc-logo-word">
+              <span className="oc-logo-title">Orbit</span>
+              <span className="oc-logo-sub">Chat</span>
+            </span>
           </div>
 
-          <div className="ic-room-block">
-            <div className="ic-block-label">ROOM</div>
-            <div className="ic-room-ip">{roomRef.current || '—'}</div>
-            <div className="ic-online">
-              <span className="ic-dot" />
+          <div className="oc-room-block">
+            <div className="oc-block-label">Room</div>
+            <div className="oc-room-ip">{roomRef.current || '—'}</div>
+            <div className="oc-online">
+              <span className="oc-dot" />
               <span>{onlineCount} online</span>
             </div>
           </div>
 
-          <div className="ic-members">
-            <div className="ic-block-label">MEMBERS</div>
-            <div className="ic-members-list">
+          <div className="oc-members">
+            <div className="oc-block-label">Members</div>
+            <div className="oc-members-list">
               {members.map((m) => (
-                <div key={m.id} className={`ic-member${m.id === myId ? ' is-me' : ''}`}>
-                  <span className="ic-member-dot" />
-                  <span className="ic-member-name">{m.username}</span>
-                  {m.id === myId && <span className="ic-you-tag">YOU</span>}
+                <div key={m.id} className={`oc-member${m.id === myId ? ' is-me' : ''}`}>
+                  <span className="oc-member-dot" />
+                  <span className="oc-member-name">{m.username}</span>
+                  {m.id === myId && <span className="oc-you-tag">YOU</span>}
                 </div>
               ))}
-              {members.length === 0 && <div className="ic-member"><span className="ic-member-name">connecting…</span></div>}
+              {members.length === 0 && <div className="oc-member"><span className="oc-member-name">connecting…</span></div>}
             </div>
           </div>
 
-          <button className="ic-leave" onClick={leaveRoom}>← Leave Room</button>
+          <button className="oc-leave" onClick={leaveRoom}>← Leave Room</button>
         </aside>
 
-        <main className="ic-main">
-          <header className="ic-header">
-            <button className="ic-menu-btn" onClick={() => setSidebarOpen((v) => !v)} aria-label="Toggle sidebar">☰</button>
-            <div className="ic-header-room">
-              <span className="ic-header-label">ROOM //</span>
-              <span className="ic-header-ip">{roomRef.current || '—'}</span>
+        <main className="oc-main">
+          <header className="oc-header">
+            <button className="oc-menu-btn" onClick={() => setSidebarOpen((v) => !v)} aria-label="Toggle sidebar">☰</button>
+            <div className="oc-header-room">
+              <span className="oc-header-label">Room</span>
+              <span className="oc-header-ip">{roomRef.current || '—'}</span>
             </div>
-            <button className="ic-clear-btn" onClick={handleClear} title="Clear chat for everyone">🗑 Clear</button>
-            <div className="ic-header-user">{nameRef.current || '—'}</div>
+            <button className="oc-clear-btn" onClick={handleClear} title="Clear chat for everyone">🗑 Clear</button>
+            <div className="oc-header-user">{nameRef.current || '—'}</div>
           </header>
 
-          <div className="ic-messages" ref={messagesRef}>
+          <div className="oc-messages" ref={messagesRef}>
             {messages.map((msg) => {
               if (msg.kind === 'system') {
                 return msg.id.startsWith('m') && msg.text === '— Start of conversation —' ? (
-                  <div key={msg.id} className="ic-start-divider"><span>— Start of conversation —</span></div>
+                  <div key={msg.id} className="oc-start-divider"><span>— Start of conversation —</span></div>
                 ) : (
-                  <div key={msg.id} className="ic-sys">{msg.text}</div>
+                  <div key={msg.id} className="oc-sys">{msg.text}</div>
                 )
               }
               return (
-                <div key={msg.id} className={`ic-msg${msg.isSelf ? ' self' : ''}`} onDoubleClick={() => setReply(msg)}>
-                  <div className="ic-msg-meta">
-                    <span className="ic-msg-author">{msg.username}</span>
-                    <span className="ic-msg-time">{formatTime(msg.timestamp)}</span>
+                <div key={msg.id} className={`oc-msg${msg.isSelf ? ' self' : ''}`} onDoubleClick={() => setReply(msg)}>
+                  <div className="oc-msg-meta">
+                    <span className="oc-msg-author">{msg.username}</span>
+                    <span className="oc-msg-time">{formatTime(msg.timestamp)}</span>
                   </div>
-                  <div className="ic-bubble">
+                  <div className="oc-bubble">
                     {msg.reply && (
-                      <div className="ic-reply-chip">
-                        <span className="ic-reply-name">↩ {msg.reply.username}</span>
-                        <span className="ic-reply-body">{msg.reply.message}</span>
+                      <div className="oc-reply-chip">
+                        <span className="oc-reply-name">↩ {msg.reply.username}</span>
+                        <span className="oc-reply-body">{msg.reply.message}</span>
                       </div>
                     )}
                     {msg.kind === 'image' ? (
                       <img
-                        className="ic-img-thumb"
+                        className="oc-img-thumb"
                         src={msg.text}
                         alt={`photo from ${msg.username}`}
                         onClick={(e) => { e.stopPropagation(); setLightbox(msg.text ?? null) }}
                       />
                     ) : (
-                      <span className="ic-text">{msg.text}</span>
+                      <span className="oc-text">{msg.text}</span>
                     )}
                   </div>
                 </div>
@@ -567,19 +590,19 @@ export default function IpChatPage() {
             })}
           </div>
 
-          <div className="ic-typing">
+          <div className="oc-typing">
             {typingNames.length > 0 &&
               `${typingNames.slice(0, 2).join(', ')}${typingNames.length > 2 ? ' and others' : ''} ${typingNames.length > 1 ? 'are' : 'is'} typing…`}
           </div>
 
-          <div className={`ic-replybar${replyTarget ? ' show' : ''}`}>
-            <span className="ic-rb-text">
+          <div className={`oc-replybar${replyTarget ? ' show' : ''}`}>
+            <span className="oc-rb-text">
               <b>↩ {replyTarget?.username}</b> · {replyTarget?.message}
             </span>
-            <button className="ic-rb-cancel" onClick={cancelReply} aria-label="Cancel reply">✕</button>
+            <button className="oc-rb-cancel" onClick={cancelReply} aria-label="Cancel reply">✕</button>
           </div>
 
-          <div className="ic-inputbar">
+          <div className="oc-inputbar">
             <input
               ref={fileRef}
               type="file"
@@ -590,12 +613,12 @@ export default function IpChatPage() {
                 e.target.value = ''
               }}
             />
-            <button className="ic-icon-btn" onClick={() => fileRef.current?.click()} aria-label="Send image" title="Send image">
+            <button className="oc-icon-btn" onClick={() => fileRef.current?.click()} aria-label="Send image" title="Send image">
               <ImageIcon />
             </button>
             <input
               ref={inputRef}
-              className="ic-msg-input"
+              className="oc-msg-input"
               value={draft}
               onChange={(e) => handleDraftChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
@@ -603,7 +626,7 @@ export default function IpChatPage() {
               maxLength={MAX_TEXT}
               autoComplete="off"
             />
-            <button className="ic-send-btn" onClick={handleSend} aria-label="Send" title="Send">
+            <button className="oc-send-btn" onClick={handleSend} aria-label="Send" title="Send">
               <SendIcon />
             </button>
           </div>
@@ -611,7 +634,7 @@ export default function IpChatPage() {
       </div>
 
       {lightbox && (
-        <div className="ic-overlay" onClick={() => setLightbox(null)}>
+        <div className="oc-overlay" onClick={() => setLightbox(null)}>
           <img src={lightbox} alt="photo preview" />
         </div>
       )}

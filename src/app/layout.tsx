@@ -1,24 +1,11 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Syne } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-});
-
-const syne = Syne({
-  variable: "--font-syne",
-  subsets: ["latin"],
-  weight: ["400", "600", "700", "800"],
-});
-
 export const metadata: Metadata = {
-  title: "IPChat — Room-Based Messenger",
+  title: "Orbit Chat — Private Room Messenger",
   description:
-    "Join a shared chat room by entering the same IPv4-style room code. Real-time messages, photos, replies and typing indicators, encrypted with the room code.",
+    "A private lounge in the cloud. Share one room code and everyone who enters it lands in the same conversation — real-time messages, photos and replies, sealed with a key derived from the room code.",
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },
@@ -31,9 +18,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${jetbrainsMono.variable} ${syne.variable} antialiased bg-background text-foreground`}
-      >
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Space+Grotesk:wght@400;500;600&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="antialiased bg-background text-foreground">
         {children}
         <Toaster />
       </body>
