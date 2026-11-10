@@ -185,6 +185,12 @@ interface BootState {
 }
 
 export async function ensureRealtimeServer(): Promise<BootState> {
+  // Deployed mode (server-prod.cjs): the relay rides on the main web server
+  // under /orb — nothing to boot on a private port here.
+  if (process.env.EMBARKO_SAME_ORIGIN === '1') {
+    return { started: true, version: RELAY_VERSION }
+  }
+
   const g = globalThis as unknown as {
     __ipchatRealtime?: BootState
     __ipchatRealtimeBoot?: Promise<BootState>

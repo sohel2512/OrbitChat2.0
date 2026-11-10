@@ -36,6 +36,7 @@ interface ChatMessage {
 
 const SOCKET_URL = '/?XTransformPort=3003'
 const RT_BOOT_URL = '/api/rt'
+const SAME_ORIGIN_PROBE = '/orb/?EIO=4&transport=polling'
 const TYPING_RESET_MS = 1200
 const MAX_TEXT = 500
 const MAX_IMAGE_DIM = 1024
@@ -254,23 +255,36 @@ export default function IpChatPage() {
     let disposed = false
 
     const boot = async () => {
-      // boot the in-process relay first so the gateway has an upstream
+      // Detect the realtime relay at runtime: a same-origin custom server
+      // (deployed mode) answers an engine.io handshake on /orb, while the
+      // sandbox gateway keeps serving it via /?XTransformPort=3003.
+      let sameOrigin = false
       try {
-        await fetch(RT_BOOT_URL, { cache: 'no-store' })
+        const probe = await fetch(SAME_ORIGIN_PROBE, { cache: 'no-store' })
+        sameOrigin = probe.ok && (await probe.text()).startsWith('0')
       } catch {
-        /* socket.io will retry anyway */
+        /* stays false */
+      }
+      if (!sameOrigin) {
+        // boot the in-process relay first so the gateway has an upstream
+        try {
+          await fetch(RT_BOOT_URL, { cache: 'no-store' })
+        } catch {
+          /* socket.io will retry anyway */
+        }
       }
       if (disposed) return
 
-      socket = io(SOCKET_URL, {
-        path: '/',
-        transports: ['websocket', 'polling'],
+      const opts = {
+        path: sameOrigin ? '/orb' : '/',
+        transports: ['websocket', 'polling'] as string[],
         forceNew: true,
         reconnection: true,
         reconnectionAttempts: 8,
         reconnectionDelay: 1000,
         timeout: 10000,
-      })
+      }
+      socket = sameOrigin ? io(opts) : io(SOCKET_URL, opts)
       socketRef.current = socket
 
       socket.on('connect', () => {
