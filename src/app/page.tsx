@@ -203,6 +203,62 @@ const LockIcon = () => (
   </svg>
 )
 
+const MenuIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <path d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+)
+
+const TrashIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 6h18" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    <path d="M10 11v6M14 11v6" />
+  </svg>
+)
+
+const XIcon = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+    <path d="M18 6L6 18M6 6l12 12" />
+  </svg>
+)
+
+const ReplyIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h10a6 6 0 0 1 6 6v4" />
+  </svg>
+)
+
+const CopyIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="9" width="12" height="12" rx="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+)
+
+const CheckIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 6L9 17l-5-5" />
+  </svg>
+)
+
+const ArrowLeftIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M19 12H5M12 19l-7-7 7-7" />
+  </svg>
+)
+
+/* Light tactile confirmation for key actions (never on every tap). */
+const buzz = (pattern: number | number[] = 10) => {
+  try {
+    navigator.vibrate?.(pattern)
+  } catch {
+    /* unsupported — fine */
+  }
+}
+
 /* --------------------------------- page ----------------------------------- */
 
 export default function IpChatPage() {
@@ -222,6 +278,8 @@ export default function IpChatPage() {
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null)
   const [captionDraft, setCaptionDraft] = useState('')
   const [sendingImage, setSendingImage] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [copiedRoom, setCopiedRoom] = useState(false)
 
   const socketRef = useRef<Socket | null>(null)
   const roomRef = useRef('')
@@ -401,6 +459,7 @@ export default function IpChatPage() {
       roomRef.current = room
       keyRef.current = await deriveRoomKey(room)
       setMessages([{ kind: 'system', id: nextId(), text: '— Start of conversation —' }])
+      buzz(12)
       setScreen('chat')
     } catch {
       setJoinError('Could not prepare encryption for this room. Try again.')
@@ -419,7 +478,7 @@ export default function IpChatPage() {
         msg.kind === 'image'
           ? msg.caption?.trim()
             ? msg.caption.slice(0, 120)
-            : '🖼 photo'
+            : 'Photo'
           : (msg.text ?? '').slice(0, 120),
       isImage: msg.kind === 'image',
     }
@@ -470,6 +529,7 @@ export default function IpChatPage() {
       message: sealed,
       reply: replyRef.current,
     })
+    buzz(8)
     setDraft('')
     cancelReply()
   }
@@ -512,6 +572,7 @@ export default function IpChatPage() {
       const cap = captionDraft.trim().slice(0, MAX_CAPTION)
       const sealedCaption = cap ? 'oc1:' + (await sealText(keyRef.current, cap)) : ''
       socket.emit('send_image', { imageData: sealed, caption: sealedCaption, reply: replyRef.current })
+      buzz([10, 40, 18])
       cancelReply()
       setPendingImage(null)
       setCaptionDraft('')
@@ -522,22 +583,39 @@ export default function IpChatPage() {
     }
   }
 
-  // Escape dismisses the confirmation sheet (never mid-send)
+  // Escape dismisses the topmost overlay — lightbox, clear dialog, then the
+  // photo confirmation sheet (never mid-send)
   useEffect(() => {
-    if (!pendingImage) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !sendingImage) {
+      if (e.key !== 'Escape') return
+      if (lightbox) setLightbox(null)
+      else if (confirmClear) setConfirmClear(false)
+      else if (pendingImage && !sendingImage) {
         setPendingImage(null)
         setCaptionDraft('')
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [pendingImage, sendingImage])
+  }, [pendingImage, sendingImage, lightbox, confirmClear])
 
-  const handleClear = () => {
-    if (window.confirm('Clear the chat for everyone in this room?')) {
-      socketRef.current?.emit('clear_chat', { room: roomRef.current })
+  const handleClear = () => setConfirmClear(true)
+
+  const doClearChat = () => {
+    socketRef.current?.emit('clear_chat', { room: roomRef.current })
+    setConfirmClear(false)
+  }
+
+  const copyRoom = async () => {
+    const code = roomRef.current
+    if (!code) return
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopiedRoom(true)
+      buzz(8)
+      setTimeout(() => setCopiedRoom(false), 1600)
+    } catch {
+      /* clipboard unavailable — the code is visible anyway */
     }
   }
 
@@ -573,6 +651,10 @@ export default function IpChatPage() {
                 placeholder="e.g. alice"
                 maxLength={20}
                 autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                aria-invalid={joinError ? true : undefined}
               />
             </label>
 
@@ -584,14 +666,20 @@ export default function IpChatPage() {
                 onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
                 placeholder="e.g. 192.168.1.1"
                 autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 inputMode="decimal"
+                aria-invalid={joinError ? true : undefined}
+                aria-describedby="oc-room-hint"
               />
-              <span className="oc-hint">Everyone who enters this exact code joins the same conversation.</span>
+              <span className="oc-hint" id="oc-room-hint">Everyone who enters this exact code joins the same conversation.</span>
             </label>
 
-            <button className="oc-connect" onClick={handleConnect} disabled={connecting}>
+            <button className="oc-connect" onClick={handleConnect} disabled={connecting} aria-busy={connecting}>
+              {connecting && <span className="oc-spinner" aria-hidden="true" />}
               <span>{connecting ? 'Entering…' : 'Enter the room'}</span>
-              <ArrowIcon />
+              {!connecting && <ArrowIcon />}
             </button>
 
             <p className="oc-error" role="alert">{joinError}</p>
@@ -622,7 +710,17 @@ export default function IpChatPage() {
 
           <div className="oc-room-block">
             <div className="oc-block-label">Room</div>
-            <div className="oc-room-ip">{roomRef.current || '—'}</div>
+            <div className="oc-room-head">
+              <div className="oc-room-ip">{roomRef.current || '—'}</div>
+              <button
+                className={`oc-copy-btn${copiedRoom ? ' copied' : ''}`}
+                onClick={copyRoom}
+                aria-label={copiedRoom ? 'Room code copied' : 'Copy room code'}
+                title="Copy room code"
+              >
+                {copiedRoom ? <CheckIcon /> : <CopyIcon />}
+              </button>
+            </div>
             <div className="oc-online">
               <span className="oc-dot" />
               <span>{onlineCount} online</span>
@@ -634,7 +732,9 @@ export default function IpChatPage() {
             <div className="oc-members-list">
               {members.map((m) => (
                 <div key={m.id} className={`oc-member${m.id === myId ? ' is-me' : ''}`}>
-                  <span className="oc-member-dot" />
+                  <span className="oc-avatar" aria-hidden="true">
+                    {(m.username || '?').trim().charAt(0).toUpperCase()}
+                  </span>
                   <span className="oc-member-name">{m.username}</span>
                   {m.id === myId && <span className="oc-you-tag">YOU</span>}
                 </div>
@@ -643,21 +743,39 @@ export default function IpChatPage() {
             </div>
           </div>
 
-          <button className="oc-leave" onClick={leaveRoom}>← Leave Room</button>
+          <button className="oc-leave" onClick={leaveRoom}>
+            <ArrowLeftIcon />
+            <span>Leave Room</span>
+          </button>
         </aside>
 
         <main className="oc-main">
           <header className="oc-header">
-            <button className="oc-menu-btn" onClick={() => setSidebarOpen((v) => !v)} aria-label="Toggle sidebar">☰</button>
+            <button
+              className="oc-menu-btn"
+              onClick={() => setSidebarOpen((v) => !v)}
+              aria-label="Toggle sidebar"
+              aria-expanded={sidebarOpen}
+            >
+              <MenuIcon />
+            </button>
             <div className="oc-header-room">
               <span className="oc-header-label">Room</span>
               <span className="oc-header-ip">{roomRef.current || '—'}</span>
             </div>
-            <button className="oc-clear-btn" onClick={handleClear} title="Clear chat for everyone">🗑 Clear</button>
-            <div className="oc-header-user">{nameRef.current || '—'}</div>
+            <button className="oc-clear-btn" onClick={handleClear} title="Clear chat for everyone">
+              <TrashIcon />
+              <span>Clear</span>
+            </button>
+            <div className="oc-header-user">
+              <span className="oc-avatar" aria-hidden="true">
+                {(nameRef.current || '·').trim().charAt(0).toUpperCase()}
+              </span>
+              <span className="oc-header-username">{nameRef.current || '—'}</span>
+            </div>
           </header>
 
-          <div className="oc-messages" ref={messagesRef}>
+          <div className="oc-messages" ref={messagesRef} role="log" aria-live="polite" aria-label="Conversation">
             {messages.map((msg) => {
               if (msg.kind === 'system') {
                 return msg.id.startsWith('m') && msg.text === '— Start of conversation —' ? (
@@ -675,7 +793,7 @@ export default function IpChatPage() {
                   <div className="oc-bubble">
                     {msg.reply && (
                       <div className="oc-reply-chip">
-                        <span className="oc-reply-name">↩ {msg.reply.username}</span>
+                        <span className="oc-reply-name"><ReplyIcon /> {msg.reply.username}</span>
                         <span className="oc-reply-body">{msg.reply.message}</span>
                       </div>
                     )}
@@ -698,16 +816,24 @@ export default function IpChatPage() {
             })}
           </div>
 
-          <div className="oc-typing">
-            {typingNames.length > 0 &&
-              `${typingNames.slice(0, 2).join(', ')}${typingNames.length > 2 ? ' and others' : ''} ${typingNames.length > 1 ? 'are' : 'is'} typing…`}
+          <div className="oc-typing" role="status" aria-live="polite">
+            {typingNames.length > 0 && (
+              <>
+                <span className="oc-tdots" aria-hidden="true"><span /><span /><span /></span>
+                <span>
+                  {`${typingNames.slice(0, 2).join(', ')}${typingNames.length > 2 ? ' and others' : ''} ${typingNames.length > 1 ? 'are' : 'is'} typing…`}
+                </span>
+              </>
+            )}
           </div>
 
           <div className={`oc-replybar${replyTarget ? ' show' : ''}`}>
             <span className="oc-rb-text">
-              <b>↩ {replyTarget?.username}</b> · {replyTarget?.message}
+              <ReplyIcon /> <b>{replyTarget?.username}</b> · {replyTarget?.message}
             </span>
-            <button className="oc-rb-cancel" onClick={cancelReply} aria-label="Cancel reply">✕</button>
+            <button className="oc-rb-cancel" onClick={cancelReply} aria-label="Cancel reply">
+              <XIcon size={14} />
+            </button>
           </div>
 
           <div className="oc-inputbar">
@@ -749,7 +875,9 @@ export default function IpChatPage() {
                 <span className="oc-confirm-title">Send photo?</span>
                 <span className="oc-confirm-sub">to room {roomRef.current || '—'}</span>
               </div>
-              <button className="oc-confirm-x" onClick={cancelPendingImage} aria-label="Discard photo" disabled={sendingImage}>✕</button>
+              <button className="oc-confirm-x" onClick={cancelPendingImage} aria-label="Discard photo" disabled={sendingImage}>
+                <XIcon size={16} />
+              </button>
             </header>
             <div className="oc-confirm-preview">
               <img src={pendingImage.dataUrl} alt="Selected photo preview" />
@@ -770,8 +898,8 @@ export default function IpChatPage() {
             />
             <footer className="oc-confirm-foot">
               <button className="oc-confirm-cancel" onClick={cancelPendingImage} disabled={sendingImage}>Cancel</button>
-              <button className="oc-confirm-send" onClick={confirmSendImage} disabled={sendingImage}>
-                <SendIcon />
+              <button className="oc-confirm-send" onClick={confirmSendImage} disabled={sendingImage} aria-busy={sendingImage}>
+                {sendingImage ? <span className="oc-spinner" aria-hidden="true" /> : <SendIcon />}
                 <span>{sendingImage ? 'Sealing…' : 'Send'}</span>
               </button>
             </footer>
@@ -779,8 +907,43 @@ export default function IpChatPage() {
         </div>
       )}
 
+      {confirmClear && (
+        <div className="oc-overlay confirm" onClick={() => setConfirmClear(false)}>
+          <div
+            className="oc-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Clear the conversation for everyone"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="oc-dialog-icon" aria-hidden="true">
+              <TrashIcon />
+            </span>
+            <h2 className="oc-dialog-title">Clear this room?</h2>
+            <p className="oc-dialog-text">
+              The whole conversation disappears for everyone here — this cannot be undone.
+            </p>
+            <footer className="oc-dialog-foot">
+              <button className="oc-confirm-cancel" onClick={() => setConfirmClear(false)} autoFocus>
+                Keep messages
+              </button>
+              <button className="oc-dialog-danger" onClick={doClearChat}>
+                <TrashIcon />
+                <span>Clear room</span>
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
       {lightbox && (
-        <div className="oc-overlay" onClick={() => setLightbox(null)}>
+        <div
+          className="oc-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo preview"
+          onClick={() => setLightbox(null)}
+        >
           <img src={lightbox} alt="photo preview" />
         </div>
       )}
