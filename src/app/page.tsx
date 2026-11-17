@@ -160,17 +160,17 @@ const OrbitMark = ({ size = 40 }: { size?: number }) => (
   <span className="oc-orbit-mark" aria-hidden="true">
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
       <defs>
-        <linearGradient id="oc-aurora-grad" x1="6" y1="6" x2="34" y2="36">
-          <stop offset="0%" stopColor="#22d3ee" />
-          <stop offset="55%" stopColor="#8b5cf6" />
-          <stop offset="100%" stopColor="#f472b6" />
+        <linearGradient id="oc-gold-grad" x1="6" y1="6" x2="34" y2="36">
+          <stop offset="0%" stopColor="#f0d9a8" />
+          <stop offset="55%" stopColor="#d8b26e" />
+          <stop offset="100%" stopColor="#a8874f" />
         </linearGradient>
       </defs>
-      <circle cx="20" cy="20" r="8.5" fill="url(#oc-aurora-grad)" />
-      <circle cx="17.2" cy="17.2" r="2.6" fill="rgba(255,255,255,0.5)" />
+      <circle cx="20" cy="20" r="8.5" fill="url(#oc-gold-grad)" />
+      <circle cx="17.2" cy="17.2" r="2.6" fill="rgba(255,255,255,0.45)" />
       <g className="oc-orbit-ring">
-        <ellipse cx="20" cy="20" rx="16" ry="6.5" stroke="url(#oc-aurora-grad)" strokeWidth="1.1" opacity="0.9" transform="rotate(-24 20 20)" />
-        <circle cx="35" cy="13.5" r="1.9" fill="#22d3ee" />
+        <ellipse cx="20" cy="20" rx="16" ry="6.5" stroke="url(#oc-gold-grad)" strokeWidth="1.1" opacity="0.85" transform="rotate(-24 20 20)" />
+        <circle cx="35" cy="13.5" r="1.9" fill="#f0d9a8" />
       </g>
     </svg>
   </span>
@@ -250,12 +250,8 @@ const ArrowLeftIcon = () => (
   </svg>
 )
 
-/* Light tactile confirmation for key actions (never on every tap).
-   Gated by the sidebar switch (Uiverse springy toggle) so users can
-   silence haptics without leaving the room. */
-let hapticsEnabled = true
+/* Light tactile confirmation for key actions (never on every tap). */
 const buzz = (pattern: number | number[] = 10) => {
-  if (!hapticsEnabled) return
   try {
     navigator.vibrate?.(pattern)
   } catch {
@@ -284,13 +280,6 @@ export default function IpChatPage() {
   const [sendingImage, setSendingImage] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
   const [copiedRoom, setCopiedRoom] = useState(false)
-  const [haptics, setHaptics] = useState(true)
-
-  const toggleHaptics = (on: boolean) => {
-    hapticsEnabled = on
-    setHaptics(on)
-    if (on) buzz(10)
-  }
 
   const socketRef = useRef<Socket | null>(null)
   const roomRef = useRef('')
@@ -638,7 +627,6 @@ export default function IpChatPage() {
   if (screen === 'join') {
     return (
       <div className="orbit-root">
-        <div className="oc-aurora" aria-hidden="true"><i /><i /><i /></div>
         <div className="oc-join">
           <div className="oc-orbit-deco one" aria-hidden="true"><span className="oc-planet" /></div>
           <div className="oc-orbit-deco two" aria-hidden="true"><span className="oc-planet" /></div>
@@ -689,7 +677,6 @@ export default function IpChatPage() {
             </label>
 
             <button className="oc-connect" onClick={handleConnect} disabled={connecting} aria-busy={connecting}>
-              {!connecting && <span className="oc-btn-shine" aria-hidden="true" />}
               {connecting && <span className="oc-spinner" aria-hidden="true" />}
               <span>{connecting ? 'Entering…' : 'Enter the room'}</span>
               {!connecting && <ArrowIcon />}
@@ -709,7 +696,6 @@ export default function IpChatPage() {
 
   return (
     <div className="orbit-root">
-      <div className="oc-aurora" aria-hidden="true"><i /><i /><i /></div>
       <div className="oc-chat">
         <div className={`oc-scrim${sidebarOpen ? ' show' : ''}`} onClick={() => setSidebarOpen(false)} aria-hidden="true" />
 
@@ -755,22 +741,6 @@ export default function IpChatPage() {
               ))}
               {members.length === 0 && <div className="oc-member"><span className="oc-member-name">connecting…</span></div>}
             </div>
-          </div>
-
-          <div className="oc-setting-row">
-            <div className="oc-setting-copy">
-              <span className="oc-setting-name">Haptic feedback</span>
-              <span className="oc-setting-sub">Vibrate on send and join</span>
-            </div>
-            <label className="oc-switch">
-              <input
-                type="checkbox"
-                checked={haptics}
-                onChange={(e) => toggleHaptics(e.target.checked)}
-                aria-label="Toggle haptic feedback"
-              />
-              <span className="oc-switch-slider" aria-hidden="true" />
-            </label>
           </div>
 
           <button className="oc-leave" onClick={leaveRoom}>
