@@ -1,22 +1,21 @@
 import type { Metadata } from "next";
-import { Cormorant, Montserrat } from "next/font/google";
+import { Sora, Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
-/* Self-hosted via next/font — zero layout shift, no external font links
-   (ui-ux-pro-max stack guideline: Luxury Serif pairing, Cormorant + Montserrat) */
-const cormorant = Cormorant({
+/* Self-hosted via next/font — zero layout shift, no external font links.
+   Orbit Aurora pairing: Sora (geometric futuristic display) + Inter (body). */
+const sora = Sora({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  style: ["normal", "italic"],
-  variable: "--font-cormorant",
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-sora",
   display: "swap",
 });
 
-const montserrat = Montserrat({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-montserrat",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
   display: "swap",
 });
 
@@ -37,7 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`antialiased bg-background text-foreground ${cormorant.variable} ${montserrat.variable}`}
+        className={`antialiased bg-background text-foreground ${sora.variable} ${inter.variable}`}
       >
         {children}
         <Toaster />
